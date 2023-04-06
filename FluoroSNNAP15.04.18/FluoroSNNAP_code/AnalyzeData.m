@@ -14,6 +14,12 @@ function Data = AnalyzeData(varargin)
 % Output is saved as analysis.mat file in the same folder. Run PostProcess
 % function to detect spikes and other analyses.
 
+% Linux vs. Windows
+if(ispc)
+    slash = '\';
+else
+    slash = '/';
+end
 
 if(nargin>0)
     SOURCE_PATH = [];
@@ -22,8 +28,7 @@ if(nargin>0)
     SAVE_RESULTS = 1;
     FNames = varargin{1};
     if(nargin==2)
-        files = varargin{2};
-        files.name = files;
+        files = dir([SOURCE_PATH FNames{1} slash varargin{2}]);
     end
 else
     %% Get the params
@@ -36,12 +41,7 @@ else
 end
 
 
-% Linux vs. Windows
-if(ispc)
-    slash = '\';
-else
-    slash = '/';
-end
+
 
 
 

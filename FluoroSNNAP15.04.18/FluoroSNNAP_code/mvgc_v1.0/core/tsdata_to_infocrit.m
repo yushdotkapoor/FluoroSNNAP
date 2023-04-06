@@ -165,8 +165,6 @@ elseif strcmpi(regmode,'LWR') % LWR (Morf)
     assert(isscalar(morder) && morder > 0,'model order must be a positive scalar');
 
     q = morder;
-    disp(q);
-    disp(m);
     assert(q < m, 'model order too large (must be < %d)',m);
     q1 = q+1;
     q1n = q1*n;

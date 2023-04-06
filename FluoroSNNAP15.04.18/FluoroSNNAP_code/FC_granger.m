@@ -6,6 +6,9 @@ icregmode = 'LWR';
 regmode = 'OLS';
 mhtc = 'FDR';
 alpha = params.FC.GC.morder;
+disp(X)
+disp(momax)
+disp(icregmode)
 [AIC,BIC,moAIC,moBIC] = tsdata_to_infocrit(X,momax,icregmode);
 morder = 1;
 [A,SIG] = tsdata_to_var(X,morder,regmode);
