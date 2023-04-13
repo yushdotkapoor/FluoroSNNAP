@@ -124,14 +124,13 @@ end
 %% set default model Parameters
 
 
-
 if nargin < 3,          P       = struct;                       end
 if ~isfield(P,'sig'),   P.sig   = mean(mad(F',1)*1.4826);       end
 if ~isfield(P,'gam'),   P.gam   = (1-V.dt/1)*ones(V.Ncells,1);  end
 if ~isfield(P,'lam'),   P.lam   = 10*ones(V.Ncells,1);          end
 if ~isfield(P,'a'),     P.a     = median(F,2);                  end
 
-if ~isfield(P,'b'),
+if ~isfield(P,'b')
     if V.Npixels==1, P.b = quantile(F,0.05);
     else P.b=median(F,2);
     end
@@ -184,7 +183,7 @@ while conv == 0
     if V.fast_plot == 1, MakePlot(n,F,P,V); end % plot results from previous iteration
     i               = i+1;                      % update iteratation number
     V.fast_iter_tot = i;                        % record of total # of iterations
-    P               = est_params(n,C,F,P,b);    % update parameters based on previous iteration
+    P               = est_params(n,C,F,P,P.b);    % update parameters based on previous iteration
     [n C posts(i)]  = est_MAP(F,P);             % update inferred spike train based on new parameters
     
     if posts(i)>post_max || V.fast_ignore_post==1% if this is the best one, keep n and P

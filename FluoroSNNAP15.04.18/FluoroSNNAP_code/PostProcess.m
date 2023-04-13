@@ -206,7 +206,11 @@ for i = 1:length(FNames) % folders
             % For the first 10-s of data, take the min value for F0
             F0 = min(F(:,1:interval_idx(2)),[],2);
             for k=1:interval_idx(2)
-                dF_cell(:,k) = (F(:,k)-F0)./F0;
+                modF=(F(:,k)-F0);
+                if F0~=0
+                    modF=modF./F0;
+                end
+                dF_cell(:,k) = modF;
             end
             try
             for it=interval_idx(2):frames
@@ -555,6 +559,7 @@ for i = 1:length(FNames) % folders
             
             for m=1:processed_analysis(j).N
                 multiWaitbar('Inferring spikes from fluorescence',m/processed_analysis(j).N);
+                disp(processed_analysis(j).dF_cell(m,:))
                 x = run_oopsi(processed_analysis(j).dF_cell(m,:));
                 spk(m,:) = x.n';
                 spk(m,:) = spk(m,:)./max(spk(m,:));

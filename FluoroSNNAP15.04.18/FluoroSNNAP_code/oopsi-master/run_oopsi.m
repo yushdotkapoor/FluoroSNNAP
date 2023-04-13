@@ -92,7 +92,7 @@ end
 % infer spikes using fast-oopsi
 if V.fast_iter_max > 0
 %     fprintf('\nfast-oopsi\n')
-    [fast.n fast.P fast.V]= fast_oopsi(F,V,P);
+    [fast.n, fast.P, fast.V]= fast_oopsi(F,V,P);
     if V.save, save(V.name_dat,'fast','-append'); end
 end
 
@@ -101,7 +101,7 @@ stupid=1;
 if V.smc_iter_max > 0
 %     fprintf('\nsmc-oopsi\n')
     siz=size(F); if siz(1)>1, F=F'; end
-    if V.fast_iter_max > 0;
+    if V.fast_iter_max > 0
         if ~isfield(P,'A'),     P.A     = 50;   end             % initialize jump in [Ca++] after spike
         if ~isfield(P,'n'),     P.n     = 1;    end             % Hill coefficient
         if ~isfield(P,'k_d'),   P.k_d   = 200;  end             % dissociation constant

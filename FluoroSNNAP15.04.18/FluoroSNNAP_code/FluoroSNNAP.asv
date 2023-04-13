@@ -64,7 +64,7 @@ handles.time = [];
 handles.imfinfo = [];
 handles.Istack = [];
 % Add paths
-addpath([pwd '/Cellsort/Cellsort1.3'],[pwd '/oopsi-master'],[pwd '/te_matlab_0'],[pwd '/mvgc_v1.0']);
+addpath([pwd '/Cellsort/Cellsort1.3'],[pwd '/oopsi-master'],[pwd '/te_matlab_0'],[pwd '/mvgc_v1.0'], [pwd '/NearestSymmetricPositiveDefinite']);
 % Try a TE job; if it fails, the user does not have a mex file
 % try
 %     asdf{1} = randsample(15,4);

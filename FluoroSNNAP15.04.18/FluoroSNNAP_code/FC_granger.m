@@ -5,10 +5,11 @@ momax = params.FC.GC.morder; % Maximum model order
 icregmode = 'LWR';
 regmode = 'OLS';
 mhtc = 'FDR';
+% for some reason, the value of alpha is morder???
 alpha = params.FC.GC.morder;
-disp(X)
-disp(momax)
-disp(icregmode)
+% disp(X)
+% disp(momax)
+% disp(icregmode)
 [AIC,BIC,moAIC,moBIC] = tsdata_to_infocrit(X,momax,icregmode);
 morder = 1;
 [A,SIG] = tsdata_to_var(X,morder,regmode);

@@ -13,6 +13,7 @@ assert(~isbad(A),'VAR estimation failed');
 
 %%
 [G,info] = var_to_autocov(A,SIG,params.FC.GC.iter);
+disp(info)
 var_info(info,true); 
 F = autocov_to_pwcgc(G);
 

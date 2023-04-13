@@ -57,6 +57,13 @@
 % sufficiently stationary, is not of sufficient length, has (possibly lagged)
 % colinearities, or has a highly skewed distribution.
 %
+% *_Note_*:  LWR implementation patched March 2018 to correct an initialisation
+% error (many thanks to Gonzalo Camba-Mendez for the heads-up). The error meant
+% that the algorithm was not strictly "minimum phase", so that coefficien
+% estimates were potentially unstable. (Note that the OLS algorithm, which
+% returns (pseudo) maximum-likelihood estimates, is not guaranteed to return
+% stable estimates.)
+%
 %% References
 %
 % [1] L. Barnett and A. K. Seth,
@@ -87,10 +94,7 @@ if nargin < 4 || isempty(verb),    verb    = true;  end
 
 [n,m,N] = size(X);
 
-X = demean(X); % no constant term
-
-% aicmin = NaN;
-% bicmin = NaN;
+X = demean(X,2); % no constant term, normalise
 
 % store lags
 
@@ -160,132 +164,95 @@ if  strcmpi(regmode,'OLS') % OLS (QR decomposition)
         if verb, fprintf(1,'\n'); end
     end
 
-elseif strcmpi(regmode,'LWR') % LWR (Morf)
+elseif strcmpi(regmode,'LWR') % LWR (Morf): patched, March 2018 to correct initialisation error (many thanks to Gonzalo Camba-Mendez for the heads-up)
 
     assert(isscalar(morder) && morder > 0,'model order must be a positive scalar');
 
-    q = morder;
-    assert(q < m, 'model order too large (must be < %d)',m);
-    q1 = q+1;
-    q1n = q1*n;
+    aic = nan(morder,1);
+    bic = nan(morder,1);
 
-    aic = nan(q,1);
-    bic = nan(q,1);
+	q = morder;
+	q1 = q+1;
+	qn = q*n;
+	q1n = q1*n;
 
-    I = eye(n);
+	I = eye(n);
 
     % initialise recursion
 
-    AF = zeros(n,q1n); % forward  AR coefficients
-    AB = zeros(n,q1n); % backward AR coefficients (reversed compared with Morf's treatment)
-
-    k  = 1;            % model order is k-1
+	M = N*m;
+	E = reshape(X,n,M);
+    IC = inv(chol_reg(E*E', 'lower'));
+    
+    k  = 1;
     kn = k*n;
     M  = N*(m-k);
+    kk = 1:k;
     kf = 1:kn;         % forward  indices
     kb = q1n-kn+1:q1n; % backward indices
+    
+    AF = zeros(n,q1n);
+    AF(:,kf) = IC; % forward  AR coefficients
+    AB = zeros(n,q1n); AB(:,kb) = IC; % backward AR coefficients (reversed compared with [2])
 
-    XF = reshape(XX(:,1:k,k+1:m,:),kn,M);
-    XB = reshape(XX(:,1:k,k:m-1,:),kn,M);
-
-    [CXF,cholp] = chol(XF*XF');
-    if cholp
-        fprintf(2,'WARNING: initialisation failed\n');
-        return % it's a show-stopper!
-    end
-
-    [CXB,cholp] = chol(XB*XB');
-    if cholp
-        fprintf(2,'WARNING: initialisation failed\n');
-        return % it's a show-stopper!
-    end
-
-    owstate = warn_supp;
-    AF(:,kf) = CXF'\I;
-    AB(:,kb) = CXB'\I;
-    [iw,~,wid]= warn_test(owstate,[],false);
-    if iw
-        fprintf(2,'initialisation failed (%s)\n',wid);
-        return % it's a show-stopper!
-    end
-
-    % and loop
+    % LWR recursion
 
     while k <= q
 
         if verb, fprintf('model order = %d',k); end
+        EF = AF(:,kf)*reshape(XX(:,kk,k+1:m,:),kn,M); % forward  prediction errors
+        EB = AB(:,kb)*reshape(XX(:,kk,k:m-1,:),kn,M); % backward prediction errors
 
-        EF = AF(:,kf)*reshape(XX(:,1:k,k+1:m,:),kn,M); % forward  prediction errors
-        EB = AB(:,kb)*reshape(XX(:,1:k,k:m-1,:),kn,M); % backward prediction errors
-
-        [CEF,cholp] = chol(EF*EF');
-        if cholp
+        wstate = warning('off','all'); lastwarn('');
+        R = (chol_reg(EF*EF','lower')\EF)*(chol_reg(EB*EB','lower')\EB)'; % normalised reflection coefficients
+        wmsg = lastwarn; warning(wstate);
+        if ~isempty(wmsg) % rank-deficient?
             if ~verb, fprintf('model order = %d',k); end
-            fprintf(2,'  WARNING: VAR estimation failed\n');
-            break % it's a show-stopper!
+            fprintf(2,'  WARNING: reflection coefficients estimation may be problematic (%s)',wmsg);
+            % not necessarily a show-stopper - carry on
+        end
+        if isbad(R) % something went badly wrong
+            if ~verb, fprintf('model order = %d',k); end
+            fprintf(2,'  WARNING: reflection coefficients estimation failed\n');
+            continue % show-stopper
         end
 
-        [CEB,cholp] = chol(EB*EB');
-        if cholp
-            if ~verb, fprintf('model order = %d',k); end
-            fprintf(2,'  WARNING: VAR estimation failed\n');
-            break % it's a show-stopper!
-        end
-
-        R = CEF'\(EF*EB')/CEB;       % normalised reflection coefficients
-
-        [CRF,cholp] = chol(I-R*R');
-        if cholp
-            if ~verb, fprintf('model order = %d',k); end
-            fprintf(2,'  WARNING: VAR estimation failed\n');
-            break % it's a show-stopper!
-        end
-
-        [CRB,cholp] = chol(I-R'*R);
-        if cholp
-            if ~verb, fprintf('model order = %d',k); end
-            fprintf(2,'  WARNING: VAR estimation failed\n');
-            break % it's a show-stopper!
-        end
-
+		kp = k;
         k  = k+1;
         kn = k*n;
         M  = N*(m-k);
+		kk = 1:k;
         kf = 1:kn;
         kb = q1n-kn+1:q1n;
 
         AFPREV = AF(:,kf);
         ABPREV = AB(:,kb);
 
-        owstate = warn_supp;
-        AF(:,kf) = CRF'\(AFPREV-R*ABPREV);
-        AB(:,kb) = CRB'\(ABPREV-R'*AFPREV);
-        [iw,~,wid]= warn_test(owstate,[],false);
-        if iw
-            if ~verb, fprintf('model order = %d',k); end
-            fprintf(2,'  WARNING: VAR estimation failed (%s)\n',wid);
-            break % it's a show-stopper!
+        wstate = warning('off','all'); lastwarn('');
+        AF(:,kf) = chol_reg(I-R*R','lower')\(AFPREV-R*ABPREV);
+        AB(:,kb) = chol_reg(I-R'*R,'lower')\(ABPREV-R'*AFPREV);
+        wmsg = lastwarn; warning(wstate);
+        if ~isempty(wmsg) % rank-deficient?
+            if ~verb, fprintf('model order = %d',kp); end
+            fprintf(2,'  WARNING: forward/backward VAR coefficients estimation may be problematic (%s)',wmsg);
+            % not necessarily a show-stopper - carry on
+        end
+        if isbad(AF) || isbad(AB) % something went badly wrong
+            if ~verb, fprintf('model order = %d',kp); end
+            fprintf(2,'  WARNING: forward/backward VAR coefficients estimation failed\n');
+            continue % show-stopper
         end
 
-        owstate = warn_supp;
-        E = AF(:,1:n)\AF(:,kf)*reshape(XX(:,1:k,k+1:m,:),kn,M);
-        [iw,~,wid]= warn_test(owstate,[],false);
-        if iw
-            if ~verb, fprintf('model order = %d',k); end
-            fprintf(2,'  WARNING: VAR estimation failed (%s)\n',wid);
-            break % it's a show-stopper!
-        end
-        
-        DSIG = det((E*E')/(M-1));
+        E = AF(:,1:n)\EF; % residuals
 
-        i = k-1;
+        DSIG = det((E*E')/(M-1)); % residuals covariance matrix determinant
         if DSIG <= 0
-            if ~verb, fprintf('model order = %d',i); end
-            fprintf(2,'  WARNING: residuals covariance matrix not positive definite\n');
-            break % show-stopper
+            if ~verb, fprintf('model order = %d',kp); end
+            fprintf(2,'  WARNING: residuals covariance not positive definite\n');
+            continue % show-stopper
         end
 
-        [aic(i),bic(i)] = infocrit(-(M/2)*log(DSIG),i*n*n,M); % -(M/2)*log(DSIG) is max log-likelihood
+        [aic(kp),bic(kp)] = infocrit(-(M/2)*log(DSIG),kp*n*n,M); % -(M/2)*log(DSIG) is max log-likelihood
         if verb, fprintf(1,'\n'); end
     end
 
