@@ -64,40 +64,86 @@ handles.time = [];
 handles.imfinfo = [];
 handles.Istack = [];
 % Add paths
-addpath([pwd '/FluoroSNNAP_code'],[pwd '/FluoroSNNAP_code/Cellsort/Cellsort1.3'],[pwd '/FluoroSNNAP_code/oopsi-master'],[pwd '/FluoroSNNAP_code/te_matlab_0'],[pwd '/FluoroSNNAP_code/mvgc_v1.0']);
+addpath([pwd '/Cellsort/Cellsort1.3'],[pwd '/oopsi-master'],[pwd '/te_matlab_0'],[pwd '/mvgc_v1.0']);
 % Try a TE job; if it fails, the user does not have a mex file
-try
-    asdf{1} = randsample(15,4);
-    asdf{2} = randsample(15,4);
-    asdf(end+1) = {10};
-    asdf(end+1) = {[2,15]};
-    [maxte, ci] = ASDFTE(asdf, 1:3);
-catch
-    hmsg=msgbox('***transent mex file does not exist. Attempting to compile now.***');
-    try
-        mex('FluoroSNNAP_code/te_matlab_0/transent.c');
-    catch
-        try
-            delete(hmsg);
-        end
-        hmsg2=msgbox('Mex does not appear to be configured. Please run "mex -setup" from Matlab command window. Until this problem is fixed, you will not be able to use "transfer entropy" as a method for inferring functional connectivity.');
-        uiwait(hmsg2);
-    end
-    try
-        delete(hmsg);
-    end
-end
+% try
+%     asdf{1} = randsample(15,4);
+%     asdf{2} = randsample(15,4);
+%     asdf(end+1) = {10};
+%     asdf(end+1) = {[2,15]};
+%     [maxte, ci] = ASDFTE(asdf, 1:3);
+% catch
+%     hmsg=msgbox('***transent mex file does not exist. Attempting to compile now.***');
+%     try
+%         mex('FluoroSNNAP_code/te_matlab_0/transent.c');
+%     catch
+%         try
+%             delete(hmsg);
+%         end
+%         hmsg2=msgbox('Mex does not appear to be configured. Please run "mex -setup" from Matlab command window. Until this problem is fixed, you will not be able to use "transfer entropy" as a method for inferring functional connectivity.');
+%         uiwait(hmsg2);
+%     end
+%     try
+%         delete(hmsg);
+%     end
+% end
+params.parallel = 1;
+params.fps = 10;
+params.F0_time = 10; % 10 seconds
+params.F0_pctl = 50;
+params.event_type =1;
+params.event_thresh = 0.85;
+params.event_amplitude = 0.01;
+params.alpha_level = 0.001;
+params.sca_type = 1;
+params.sca_N = 20;
+params.sca_size = 3;
+params.spike_inference_iter = 500;
+params.spike_inference_filter = 1;
+params.spike_inference_A = 50;
+params.spike_inference_n = 1;
+params.spike_inference_kd = 200;
+params.FC.CC.Nsur = 100;
+params.FC.CC.maxlag = .5;
+params.FC.PC.alpha = 0.001;
+params.FC.phase.Nsur = 100;
+params.FC.phase.alpha = 0.001;
+params.FC.GC.morder=20;
+params.FC.GC.alpha=0.05;
+params.FC.GC.iter=100;
+params.FC.TE.lags=1:10;
+params.FC.TE.Nsur=100;
+params.FC.method_idx = 6;
+params.network_ensemble_sd = 3;
+params.network_ensemble_Nsur = 1000;
+params.analyze.deltaF=1;
+params.analyze.detect_events=1;
+params.analyze.sca=1;
+params.analyze.FC=1;
+params.analyze.controllability=1;
+params.analyze.kinetics=1;
+params.analyze.spike_probability=1;
+params.analyze.ensembles=1;
+params.analyze.figure=1;
+
 
 % Ask user if parallel computing toolbox is to be used
 choice = questdlg('Do you want to use parallel computing? Requires proper installation of the parallel computing toolbox.','Enable parallel computing?','Enable parallel computing','Disable parallel computing','Enable parallel computing');
-load('params.mat');
+
+
 switch choice
     case 'Enable parallel computing'
         params.parallel = 1;
     case 'Disable parallel computing'
         params.parallel = 0;
 end
-save('FluoroSNNAP_code/params.mat','params');
+try
+save('params.mat','params');
+catch
+    errordlg(['I do not have write permission to ' ctfroot '. Please re-run FluoroSNNAP with administrator priviledges'],'Permission denied','modal');
+    return;
+end
+set(handles.figure1,'Visible','on');
 if(params.parallel)
     poolobj = gcp('nocreate'); % If no pool, do not create new one.
     if isempty(poolobj)
@@ -110,6 +156,7 @@ if(params.parallel)
     end
 end
 granger_set_paths;
+
 % Update handles structure
 guidata(hObject, handles);
 
@@ -141,8 +188,13 @@ if(isempty(idx))
     errordlg('Please add folders before making a selection','Bad input','modal');
     return;
 end
+try
 handles.curr_folder_idx = idx;
 handles.curr_folder = handles.folders{idx};
+catch
+    errordlg('Please select a folder and filename before making a selection','Bad input','modal');
+    return;
+end
 % Get tiff files from this folder and populate listbox1
 fnames = dir([handles.curr_folder '/*.tif']);
 handles.files = cell(length(fnames),1);
@@ -189,9 +241,14 @@ if(isempty(idx))
     errordlg('Bad selection. Please try again','Bad input','modal');
     return;
 end
+try
 handles.curr_file_idx = idx;
 handles.curr_file = handles.files{idx};
-
+catch
+   
+    errordlg('Please select a folder and filename before making a selection','Bad input','modal');
+    return;
+end
 handles.fps = [];
 handles.time = [];
 handles.imfinfo = [];
@@ -359,13 +416,13 @@ switch choice
                 multiWaitbar(['Loading ' handles.curr_file],0,'Name','Please wait');
                 
                 I = imread(fullfile(handles.curr_folder,handles.curr_file),...
-                    'Info',handles.imfinfo,'Index',handles.flims(1));
+                    'Index',handles.flims(1));
                 for i=handles.flims(1)+1:handles.flims(2)
                     if(~mod(i,100))
                         multiWaitbar(['Loading ' handles.curr_file],i/handles.flims(2),'Name','Please wait');
                     end
                     I = double(I) + double(imread(fullfile(handles.curr_folder,handles.curr_file),...
-                        'Info',handles.imfinfo,'Index',i));
+                       'Index',i));
                 end
                 I = I./numel(handles.flims(1):handles.flims(2));;
                 handles.Imean = I;
@@ -460,13 +517,13 @@ multiWaitbar('Close All','Name','');
 multiWaitbar(['Loading ' handles.curr_file],0,'Name','Please wait');
 
 I = imread(fullfile(handles.curr_folder,handles.curr_file),...
-    'Info',handles.imfinfo,'Index',handles.flims(1));
+    'Index',handles.flims(1));
 for i=handles.flims(1)+1:handles.flims(2)
     if(~mod(i,100))
         multiWaitbar(['Loading ' handles.curr_file],i/handles.flims(2),'Name','Please wait');
     end
     I = double(I) + double(imread(fullfile(handles.curr_folder,handles.curr_file),...
-        'Info',handles.imfinfo,'Index',i));
+        'Index',i));
 end
 I = I./numel(handles.flims(1):handles.flims(2));
 handles.Imean = I;
@@ -525,14 +582,13 @@ end
 multiWaitbar('Close All','Name','');
 multiWaitbar(['Loading ' handles.curr_file],0,'Name','Please wait');
 
-I = imread(fullfile(handles.curr_folder,handles.curr_file),...
-    'Info',handles.imfinfo,'Index',handles.flims(1));
+I = imread(fullfile(handles.curr_folder,handles.curr_file),'Index',handles.flims(1));
 for i=handles.flims(1)+1:handles.flims(2)
     if(~mod(i,100))
         multiWaitbar(['Loading ' handles.curr_file],i/handles.flims(2),'Name','Please wait');
     end
     Inew = imread(fullfile(handles.curr_folder,handles.curr_file),...
-        'Info',handles.imfinfo,'Index',i);
+        'Index',i);
     I(Inew>I) = Inew(Inew>I);
 end
 
@@ -650,7 +706,7 @@ switch choice
                 Imean = Imean./frames;
                 BW = Imean>prctile(Imean(:),95);
                 BW = activecontour(Imean,BW);
-                L = bwlabel(BW);
+                L = bwlabel(BW(:,:,1));
                 C = regionprops(L,'Area');
                 A = [C.Area];
                 for l=1:numel(A)
@@ -1050,7 +1106,7 @@ end
 params.sca_type = str2num(answer{1});
 params.sca_N = str2num(answer{2});
 params.sca_size = str2num(answer{3});
-save('FluoroSNNAP_code/params.mat','params');
+save('params.mat','params');
 % --------------------------------------------------------------------
 function grouped_raster_Callback(hObject, eventdata, handles)
 % hObject    handle to grouped_raster (see GCBO)
@@ -1409,7 +1465,7 @@ catch
 end
 params.F0_time = str2num(answer{1});
 params.F0_pctl = str2num(answer{2});
-save('FluoroSNNAP_code/params.mat','params');
+save('params.mat','params');
 
 % --------------------------------------------------------------------
 function event_detection_Callback(hObject, eventdata, handles)
@@ -1434,7 +1490,7 @@ if(params.event_type==2 && params.event_thresh<1)
     errordlg('Threshold must be a scalar >=1 if deconvolution based event detection is selected','Bad input','modal');
     return
 end
-save('FluoroSNNAP_code/params.mat','params');
+save('params.mat','params');
 
 
 % --------------------------------------------------------------------
@@ -1490,7 +1546,7 @@ params.analyze.spike_probability=1;
 params.analyze.ensembles=1;
 params.analyze.figure=1;
 
-save('FluoroSNNAP_code/params.mat','params');
+save('params.mat','params');
 
 % --------------------------------------------------------------------
 function acquisition_fps_Callback(hObject, eventdata, handles)
@@ -1507,7 +1563,7 @@ catch
     answer = inputdlg(msg,'FPS',1,{'10'});
 end
 params.fps = str2num(answer{1});
-save('FluoroSNNAP_code/params.mat','params');
+save('params.mat','params');
 
 
 % --------------------------------------------------------------------
@@ -1536,7 +1592,7 @@ try
     params.spike_inference_A = str2num(answer{3});
     params.spike_inference_n = str2num(answer{4});
     params.spike_inference_kd = str2num(answer{5});
-    save('FluoroSNNAP_code/params.mat','params');
+    save('params.mat','params');
 end
 % --------------------------------------------------------------------
 function merge_files_Callback(hObject, eventdata, handles)
@@ -1570,7 +1626,7 @@ for i=2:length(indices)
         if(~mod(k,100))
             waitbar(k/frames,hmsg,sprintf('Please wait. Appending %s to %s\n.',handles.files{indices(i)},handles.files{indices(1)}));
         end
-        I = imread(fullfile(handles.curr_folder,handles.files{indices(i)}),'Info',info,'Index',k);
+        I = imread(fullfile(handles.curr_folder,handles.files{indices(i)}),'Index',k);
         imwrite(I,fullfile(handles.curr_folder,handles.files{indices(1)}),'WriteMode','append');
     end
     try
@@ -1621,7 +1677,7 @@ waitbar(.5,hmsg,sprintf('Please wait while bad frames are removed and the image 
 recycle('on');
 delete(fname);
 for i=1:frames
-    I = imread(fname,'Info',info,'Index',i);
+    I = imread(fname,'Index',i);
     if(~nnz(i==indices))
         if(~mod(i,100))
             waitbar(.5+.5*i/size(Istack,3),hmsg,sprintf('Please wait while bad frames are removed and the image stack re-written\n%s',fname));
@@ -1726,9 +1782,14 @@ catch
 end
 I1 = imread(fullfile(handles.curr_folder,handles.curr_file),idx(1));
 I2 = imread(fullfile(handles.curr_folder,handles.curr_file),idx(2));
-r = corr2(I1,I2);
-I1 = imadjust(I1);
-I2 = imadjust(I2);
+
+% Convert the images to grayscale
+grayI1 = rgb2gray(I1);
+grayI2 = rgb2gray(I2);
+
+r = corr2(grayI1,grayI2);
+I1 = imadjust(grayI1);
+I2 = imadjust(grayI2);
 figure; imshowpair(I1,I2,'Scaling','joint'); title(sprintf('2-D correlation between frames %d and %d = %f',idx(1),idx(2),r));
 guidata(hObject,handles);
 % --------------------------------------------------------------------
@@ -1819,7 +1880,7 @@ else
     N = numel(handles.imfinfo);
 end
 try
-    answer = inputdlg({'Enter the template frame number',sprintf('Enter a range of frames between 1 and %d that will be aligned to the template frame',numel(handles.imfinfo))},'Enter frame range for registration',1,{'1','200:300'});
+    answer = inputdlg({'Enter the template frame number',sprintf('Enter a range of frames between 1 and %d that will be aligned to the template frame',numel(handles.imfinfo))},'Enter frame range for registration',1,{'1', sprintf('1:%d',numel(handles.imfinfo))});
     template_idx = str2num(answer{1});
     idx = str2num(answer{2});
 catch
@@ -3165,7 +3226,7 @@ end
 params.network_ensemble_sd = str2num(answer{1});
 params.network_ensemble_Nsur = str2num(answer{2});
 
-save('FluoroSNNAP_code/params.mat','params');
+save('params.mat','params');
 
 
 % --------------------------------------------------------------------
@@ -3519,7 +3580,7 @@ try
         case 'Disable parallel computing'
             params.parallel = 0;
     end
-    save('FluoroSNNAP_code/params.mat','params');
+    save('params.mat','params');
 catch
     return;
 end
